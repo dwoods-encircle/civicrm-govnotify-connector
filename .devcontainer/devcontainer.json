@@ -1,7 +1,7 @@
 {
   "name": "Drupal + CiviCRM (Codespaces)",
   "dockerComposeFile": "docker-compose.yml",
-  "service": "devcontainer",
+  "service": "cli",
   "workspaceFolder": "/workspaces/civicrm-govnotify-connector",
   "forwardPorts": [8080],
   "postCreateCommand": "composer --version"
