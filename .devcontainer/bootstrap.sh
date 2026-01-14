@@ -59,26 +59,26 @@ echo "==> Installing contrib deps (token/pathauto) if missing..."
 $PHP_EXEC "cd $WEBROOT_CONT && composer require -n drupal/token drupal/pathauto"
 
 echo "==> Installing Drupal site if not installed..."
-if [ ! -f "$WEBROOT_HOST/web/sites/default/settings.php" ]; then
+# Check if Drupal database tables exist
+if $DB_EXEC "mysql --ssl-mode=DISABLED -udrupal -pdrupal drupal -e 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=\"drupal\" AND table_name=\"key_value\";'" 2>/dev/null | grep -q "1"; then
+  echo "Drupal database tables exist, skipping installation."
+else
+  echo "Installing Drupal site..."
+  # Remove old settings.php if it exists but database is empty
+  $PHP_EXEC "rm -f $WEBROOT_CONT/web/sites/default/settings.php"
+  
   $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush si -y \
-    --db-url='mysql://drupal:drupal@db/drupal?ssl-mode=DISABLED' \
+    --db-url='mysql://drupal:drupal@db/drupal' \
     --site-name='Drupal + CiviCRM' \
     --account-name=admin \
-    --account-pass=admin"
+    --account-pass=admin \
+    --existing-config=0"
   
   echo "Verifying Drupal installation..."
-  if ! $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush status" > /dev/null 2>&1; then
+  if ! $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush status --field=bootstrap" | grep -q "Successful"; then
     echo "ERROR: Drupal installation failed or database connection is not working"
+    $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush status"
     exit 1
-  fi
-else
-  echo "settings.php exists, skipping drush si."
-  
-  # Verify database connectivity
-  if ! $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush status" > /dev/null 2>&1; then
-    echo "WARNING: Drupal cannot connect to database. Checking connectivity..."
-    $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush status" || true
-    echo "Attempting to continue anyway..."
   fi
 fi
 
@@ -115,7 +115,55 @@ if $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush ev 'return \\Drupal::database
   echo "CiviCRM already installed, skipping installation"
 else
   echo "Installing CiviCRM database..."
-  $PHP_EXEC "cd $WEBROOT_CONT/web && cv core:install -K --url=http://localhost"
+  # Detect base URL for Codespaces or use localhost
+  if [ -n "${CODESPACE_NAME:-}" ]; then
+    BASE_URL="https://${CODESPACE_NAME}-80.app.github.dev"
+    echo "Detected Codespaces URL: $BASE_URL"
+  else
+    BASE_URL="http://localhost"
+    echo "Using localhost URL: $BASE_URL"
+  fi
+  
+  $PHP_EXEC "cd $WEBROOT_CONT/web && cv core:install -K --url=\"$BASE_URL\""
+fi
+
+echo "==> Detecting base URL..."
+# Try to get the Codespaces URL from environment
+if [ -n "${CODESPACE_NAME:-}" ]; then
+  BASE_URL="https://${CODESPACE_NAME}-80.app.github.dev"
+  echo "Detected Codespaces URL: $BASE_URL"
+  
+  echo "==> Configuring CiviCRM base URL..."
+  # Use direct SQL to update CiviCRM settings
+  echo "==> Updating CiviCRM settings in database..."
+  BASE_URL_LENGTH=$(echo -n "$BASE_URL" | wc -c)
+  $DB_EXEC "mysql --ssl-mode=DISABLED -udrupal -pdrupal drupal -e \"
+    UPDATE civicrm_setting 
+    SET value = 's:${BASE_URL_LENGTH}:\\\"${BASE_URL}\\\";' 
+    WHERE name = 'userFrameworkResourceURL';
+  \"" 2>/dev/null || echo "Note: Could not update userFrameworkResourceURL (may not exist yet)"
+  
+  echo "==> Updating civicrm.settings.php with base URL..."
+  $PHP_EXEC "cd $WEBROOT_CONT/web/sites/default && sed -i \"s|http://localhost|$BASE_URL|g\" civicrm.settings.php" || echo "Could not update civicrm.settings.php"
+  
+  echo "==> Configuring Drupal trusted host patterns..."
+  $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush php-eval \"
+    \\\$settings_file = '$WEBROOT_CONT/web/sites/default/settings.php';
+    if (!file_exists(\\\$settings_file)) {
+      echo 'Settings file not found at ' . \\\$settings_file;
+      exit(1);
+    }
+    \\\$settings = file_get_contents(\\\$settings_file);
+    if (strpos(\\\$settings, 'trusted_host_patterns') === false) {
+      \\\$pattern = '\n\\\$settings[\\\"trusted_host_patterns\\\"] = [\n  \\\"^.*\\\\.app\\\\.github\\\\.dev\\\$\\\",\n];\n';
+      file_put_contents(\\\$settings_file, \\\$settings . \\\$pattern);
+      echo 'Added trusted host patterns';
+    } else {
+      echo 'Trusted host patterns already configured';
+    }
+  \""
+else
+  echo "Not running in Codespaces, skipping base URL configuration"
 fi
 
 echo "==> Clearing caches..."
