@@ -1,5 +1,8 @@
 {
-    "dockerComposeFile": "docker-compose.yml",
-    "service": "iopa-staging-drupal",
-    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}"
+  "name": "Drupal + CiviCRM (Codespaces)",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspaces/civicrm-govnotify-connector",
+  "forwardPorts": [8080],
+  "postCreateCommand": "composer --version"
 }
