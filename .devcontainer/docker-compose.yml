@@ -36,6 +36,7 @@ services:
     volumes:
       - ../webroot:/var/www/html
       - .:/var/www/html/.devcontainer:ro
+      - ../ext:/var/www/html/web/sites/default/files/civicrm/ext
     depends_on:
       db:
         condition: service_healthy
@@ -47,6 +48,7 @@ services:
     volumes:
       - ../webroot:/var/www/html
       - .:/var/www/html/.devcontainer:ro
+      - ../ext:/var/www/html/web/sites/default/files/civicrm/ext
       # IMPORTANT: compose file is in .devcontainer, so nginx config is ./nginx
       - ./nginx:/etc/nginx/conf.d:ro
     depends_on:
