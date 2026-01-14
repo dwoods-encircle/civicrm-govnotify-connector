@@ -1,4 +1,14 @@
 services:
+  devcontainer:
+    image: mcr.microsoft.com/devcontainers/base:ubuntu
+    volumes:
+      - ..:/workspaces/civicrm-govnotify-connector:cached
+    working_dir: /workspaces/civicrm-govnotify-connector
+    command: sleep infinity
+    depends_on:
+      db:
+        condition: service_healthy
+
   db:
     image: mysql:8.0
     command: >
@@ -23,43 +33,18 @@ services:
       context: .
       dockerfile: Dockerfile.php
     volumes:
-      - ./webroot:/var/www/html
-    environment:
-      DB_HOST: db
-      DB_NAME: drupal
-      DB_USER: drupal
-      DB_PASS: drupal
+      - ../webroot:/var/www/html
     depends_on:
       db:
         condition: service_healthy
 
   nginx:
     image: nginx:1.25-alpine
-    ports:
-      - "8080:80"
     volumes:
-      - ./webroot:/var/www/html:ro
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../webroot:/var/www/html:ro
+      - ./.devcontainer/nginx:/etc/nginx/conf.d:ro
     depends_on:
       - php
-
-  # Use this for composer/drush without installing anything on your host
-  cli:
-    build:
-      context: .
-      dockerfile: Dockerfile.php
-    entrypoint: ["/bin/sh", "-lc"]
-    working_dir: /var/www/html
-    volumes:
-      - ./webroot:/var/www/html
-    environment:
-      DB_HOST: db
-      DB_NAME: drupal
-      DB_USER: drupal
-      DB_PASS: drupal
-    depends_on:
-      db:
-        condition: service_healthy
 
 volumes:
   db_data:

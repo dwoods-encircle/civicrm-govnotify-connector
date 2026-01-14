@@ -1,8 +1,14 @@
 {
   "name": "Drupal + CiviCRM (Codespaces)",
   "dockerComposeFile": "docker-compose.yml",
-  "service": "cli",
+  "service": "devcontainer",
+  "runServices": ["db", "php", "nginx"],
   "workspaceFolder": "/workspaces/civicrm-govnotify-connector",
-  "forwardPorts": [8080],
-  "postCreateCommand": "composer --version"
+  "forwardPorts": [
+    80
+  ],
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "postStartCommand": ""
 }
