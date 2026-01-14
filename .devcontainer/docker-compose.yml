@@ -34,6 +34,7 @@ services:
       dockerfile: Dockerfile.php
     volumes:
       - ../webroot:/var/www/html
+      - .:/var/www/html/.devcontainer:ro
     depends_on:
       db:
         condition: service_healthy
@@ -43,7 +44,8 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ../webroot:/var/www/html:ro
+      - ../webroot:/var/www/html
+      - .:/var/www/html/.devcontainer:ro
       # IMPORTANT: compose file is in .devcontainer, so nginx config is ./nginx
       - ./nginx:/etc/nginx/conf.d:ro
     depends_on:
