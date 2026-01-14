@@ -16,4 +16,7 @@ RUN chmod +x /usr/local/bin/install-php-extensions \
 RUN mkdir -p /etc/mysql/conf.d \
  && printf "[client]\nssl-mode=DISABLED\nssl=0\n" > /etc/mysql/conf.d/disable-ssl.cnf
 
- WORKDIR /var/www/html
+# Increase PHP memory limit for CiviCRM
+RUN echo "memory_limit = 512M" > /usr/local/etc/php/conf.d/memory-limit.ini
+
+WORKDIR /var/www/html

@@ -8,7 +8,7 @@
   "features": {
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
   },
-  "postStartCommand": ".devcontainer/bootstrap.sh",
+  "postStartCommand": "echo 'Run .devcontainer/bootstrap.sh manually to install Drupal and CiviCRM'",
   "remoteEnv": {
     "DOCKER_API_VERSION": "1.43"
   }

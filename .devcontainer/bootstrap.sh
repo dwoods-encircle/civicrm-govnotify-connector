@@ -65,15 +65,28 @@ if [ ! -f "$WEBROOT_HOST/web/sites/default/settings.php" ]; then
     --site-name='Drupal + CiviCRM' \
     --account-name=admin \
     --account-pass=admin"
+  
+  echo "Verifying Drupal installation..."
+  if ! $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush status" > /dev/null 2>&1; then
+    echo "ERROR: Drupal installation failed or database connection is not working"
+    exit 1
+  fi
 else
   echo "settings.php exists, skipping drush si."
+  
+  # Verify database connectivity
+  if ! $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush status" > /dev/null 2>&1; then
+    echo "WARNING: Drupal cannot connect to database. Checking connectivity..."
+    $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush status" || true
+    echo "Attempting to continue anyway..."
+  fi
 fi
 
 echo "==> Ensuring sites/default is writable..."
 $PHP_EXEC "chmod -R u+w $WEBROOT_CONT/web/sites/default"
 
 echo "==> Enabling useful modules..."
-$PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush en -y syslog views_ui token pathauto"
+$PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush en -y syslog views_ui token pathauto --debug"
 
 
 echo "==> Requiring CiviCRM 6.4.1 packages (idempotent)..."
@@ -91,17 +104,18 @@ $PHP_EXEC "cd $WEBROOT_CONT && composer require -n \
 echo "==> Cleaning up any leftover CiviCRM test tables..."
 $DB_EXEC "mysql --ssl-mode=DISABLED -udrupal -pdrupal drupal -e 'DROP TABLE IF EXISTS civicrm_install_temp_table_test;'" 2>/dev/null || true
 
+echo "==> Installing cv (CiviCRM CLI tool) as standalone PHAR..."
+$PHP_EXEC "curl -LsS https://download.civicrm.org/cv/cv.phar -o /usr/local/bin/cv && chmod +x /usr/local/bin/cv"
+
 echo "==> Enabling CiviCRM module..."
 $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush en -y civicrm"
 
 echo "==> Running CiviCRM installation..."
-if $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush ev \"return \\Drupal::database()->schema()->tableExists('civicrm_contact');\"" | grep -q "1"; then
-  echo "CiviCRM already installed, skipping cv core:install"
+if $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush ev 'return \\Drupal::database()->schema()->tableExists(\"civicrm_contact\");'" | grep -q "1"; then
+  echo "CiviCRM already installed, skipping installation"
 else
   echo "Installing CiviCRM database..."
-  $PHP_EXEC "cd $WEBROOT_CONT/web && \
-    ../vendor/bin/drush cvapi System.install \
-    --lang=en_US"
+  $PHP_EXEC "cd $WEBROOT_CONT/web && cv core:install -K --url=http://localhost"
 fi
 
 echo "==> Clearing caches..."
