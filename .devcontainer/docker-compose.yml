@@ -1,113 +1,65 @@
-version: '3.4'
-
 services:
+  db:
+    image: mysql:8.0
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: drupal
+      MYSQL_USER: drupal
+      MYSQL_PASSWORD: drupal
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
-  iopa-staging-webserver:
-    container_name: iopa-staging-webserver
-    image: quay.io/encircleuk/nginx-modsec:v1.9.1-arm
-    ports:
-      - '172.31.21.24:80:80'
-      - '172.31.21.24:443:443'
+  php:
+    build:
+      context: .
+      dockerfile: Dockerfile.php
+    volumes:
+      - ./webroot:/var/www/html
+    environment:
+      DB_HOST: db
+      DB_NAME: drupal
+      DB_USER: drupal
+      DB_PASS: drupal
     depends_on:
-      - iopa-staging-drupal
-    volumes:
-      - ./conf/nginx/certs/:/etc/nginx/certs
-      - ./logs/nginx/:/var/log/nginx
-      #- ./conf/nginx/redirects.conf:/etc/nginx/hardening.d/redirects.conf
-      - ./drupal/:/var/www/html
-      - ./conf/nginx/clientcerts.conf:/etc/nginx/hardening.d/clientcerts.conf
-      - ./conf/nginx/headers.conf:/etc/nginx/hardening.d/headers.conf
-      - ./conf/nginx/fastcgi.conf:/etc/nginx/conf.d/fastcgi.conf
-      - ./conf/nginx/clientcerts.conf:/etc/nginx/hardening.d/clientcerts.conf
-      #- ./conf/nginx/civicrm.conf:/etc/nginx/hardening.d/civicrm.conf
-    restart: unless-stopped
-    networks:
-      - frontend
-    environment:
-      ENV: ${ENV}
-      IP_WHITELIST_1: ${IP_WHITELIST_1}
-      IP_WHITELIST_2: ${IP_WHITELIST_2}
-      FPM_HOST: ${FPM_HOST}
-      SITE: ${SITE}
-      WEBROOT: /var/www/html/site/web
-      HTPASS: ${HTPASS}
-      MODSEC_ENGINE_MODE: ${MODSEC_ENGINE_MODE}
-      DRUPAL_MODE: ${DRUPAL_MODE}
+      db:
+        condition: service_healthy
 
-  iopa-staging-database:
-    container_name: iopa-staging-database
-    image: quay.io/encircleuk/mariadb:v1.9.1-arm
-    expose:
-      - '3306'
+  nginx:
+    image: nginx:1.25-alpine
     ports:
-      - '3311:3306'
+      - "8080:80"
     volumes:
-      - ./database/data:/var/lib/mysql
-      - ./migrations/:/docker-entrypoint-initdb.d
-      #- ./conf/database/encircle.cnf:/etc/mysql/conf.d/encircle.cnf
-      - ./database/tuner:/root/tuner
-      - ./database/conf/encircle.d:/etc/mysql/encircle.d
-    networks:
-      - backend
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-
-  iopa-staging-drupal:
-    container_name: iopa-staging-drupal
-    image: quay.io/encircleuk/drupal10:v1.9.1-arm
-    expose:
-      - '9000'
+      - ./webroot:/var/www/html:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - iopa-staging-database
+      - php
+
+  # Use this for composer/drush without installing anything on your host
+  cli:
+    build:
+      context: .
+      dockerfile: Dockerfile.php
+    entrypoint: ["/bin/sh", "-lc"]
+    working_dir: /var/www/html
     volumes:
-      - ./conf/ssh:/root/.ssh
-      - ./conf/git/gitconfig:/root/.gitconfig
-      - ./drupal:/var/src/drupal
-      - ./logs/drupal:/var/log/drupal/
-      - ./conf/php/www.conf:/usr/local/etc/php-fpm.d/www.conf
-      - ./conf/php/opcache-recommended.ini:/usr/local/etc/php/conf.d/opcache-recommended.ini
-      - ./scripts/permissions.sh:/usr/local/bin/permissions.sh
-      - ./conf/postfix.ini:/usr/local/etc/php/conf.d/postfix.ini
-      - ./conf/php/memory_limit.ini:/usr/local/etc/php/conf.d/memory_limit.ini
-      - ./conf/php/xdebug.ini:/usr/local/etc/php/conf.d/xdebug.ini
-      - ./logs/php/:/var/log/php
-    networks:
-      - frontend
-      - backend
-      - postfix
-    restart: unless-stopped
+      - ./webroot:/var/www/html
     environment:
-      SITE: ${SITE}
-      DB_HOST: ${MYSQL_HOST}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      DB_HOST: db
+      DB_NAME: drupal
+      DB_USER: drupal
+      DB_PASS: drupal
+    depends_on:
+      db:
+        condition: service_healthy
 
-  iopa-staging-memcache:
-    container_name: iopa-staging-memcache
-    image: encircle/memcache:v1.7.17-arm
-    restart: unless-stopped
-    expose:
-      - '11211'
-    networks:
-      - backend
-
-  #phpmyadmin:
-   # image: phpmyadmin
-   # restart: always
-   # networks:
-   #   - backend
-   # ports:
-   #   - 8080:80
-   # environment:
-   #   - PMA_ARBITRARY=1
-
-networks:
-  frontend:
-  backend:
-  postfix:
-    external: true
+volumes:
+  db_data:
