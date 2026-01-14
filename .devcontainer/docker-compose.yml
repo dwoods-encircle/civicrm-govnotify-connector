@@ -40,9 +40,12 @@ services:
 
   nginx:
     image: nginx:1.25-alpine
+    ports:
+      - "80:80"
     volumes:
       - ../webroot:/var/www/html:ro
-      - ./.devcontainer/nginx:/etc/nginx/conf.d:ro
+      # IMPORTANT: compose file is in .devcontainer, so nginx config is ./nginx
+      - ./nginx:/etc/nginx/conf.d:ro
     depends_on:
       - php
 

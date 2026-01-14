@@ -4,9 +4,7 @@
   "service": "devcontainer",
   "runServices": ["db", "php", "nginx"],
   "workspaceFolder": "/workspaces/civicrm-govnotify-connector",
-  "forwardPorts": [
-    80
-  ],
+  "forwardPorts": [80],
   "features": {
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
   },
