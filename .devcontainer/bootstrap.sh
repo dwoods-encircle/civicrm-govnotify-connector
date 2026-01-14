@@ -77,15 +77,19 @@ $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush en -y syslog views_ui token path
 
 
 echo "==> Requiring CiviCRM 6.4.1 packages (idempotent)..."
-$PHP_EXEC "composer config --no-plugins allow-plugins.cweagans/composer-patches true"
-$PHP_EXEC "composer config --no-plugins allow-plugins.civicrm/civicrm-asset-plugin true"
-$PHP_EXEC "composer config --no-plugins allow-plugins.civicrm/composer-downloads-plugin true"
-$PHP_EXEC "composer config --no-plugins allow-plugins.civicrm/composer-compile-plugin true"
+$PHP_EXEC "cd $WEBROOT_CONT && composer config --no-plugins allow-plugins.cweagans/composer-patches true"
+$PHP_EXEC "cd $WEBROOT_CONT && composer config --no-plugins allow-plugins.civicrm/civicrm-asset-plugin true"
+$PHP_EXEC "cd $WEBROOT_CONT && composer config --no-plugins allow-plugins.civicrm/composer-downloads-plugin true"
+$PHP_EXEC "cd $WEBROOT_CONT && composer config --no-plugins allow-plugins.civicrm/composer-compile-plugin true"
+$PHP_EXEC "cd $WEBROOT_CONT && composer config extra.compile-mode all"
 
 $PHP_EXEC "cd $WEBROOT_CONT && composer require -n \
   civicrm/civicrm-core:6.4.1 \
   civicrm/civicrm-packages:6.4.1 \
   civicrm/civicrm-drupal-8:6.4.1"
+
+echo "==> Cleaning up any leftover CiviCRM test tables..."
+$DB_EXEC "mysql --ssl-mode=DISABLED -udrupal -pdrupal drupal -e 'DROP TABLE IF EXISTS civicrm_install_temp_table_test;'" 2>/dev/null || true
 
 echo "==> Enabling CiviCRM module..."
 $PHP_EXEC "cd $WEBROOT_CONT && vendor/bin/drush en -y civicrm"
